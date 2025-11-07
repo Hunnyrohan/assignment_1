@@ -1,6 +1,6 @@
 // Abstract base class for BankAccount
 abstract class BankAccount {
-  // Private fields for encapsulation
+  // Private fields for encapsulation (library-private in Dart)
   String _accountNumber;
   String _accountHolderName;
   double _balance;
@@ -13,14 +13,14 @@ abstract class BankAccount {
   String get accountHolderName => _accountHolderName;
   double get balance => _balance;
 
-  // Setters with validation
+  // Setter with validation
   set accountHolderName(String name) {
     if (name.isNotEmpty) {
       _accountHolderName = name;
     }
   }
 
-  // Abstract methods for polymorphism and abstraction
+  // Methods that subclasses must implement
   void deposit(double amount);
   void withdraw(double amount);
 
@@ -32,7 +32,7 @@ abstract class BankAccount {
   }
 }
 
-// Interface for interest-bearing accounts (abstraction)
+// Interface for interest-bearing accounts
 abstract class InterestBearing {
   double calculateInterest();
 }
@@ -54,7 +54,6 @@ class SavingsAccount extends BankAccount implements InterestBearing {
   void deposit(double amount) {
     if (amount > 0) {
       _balance += amount;
-      addTransaction('deposit', amount); // Track transaction
       print('Deposited \$${amount.toStringAsFixed(2)} into SavingsAccount.');
     }
   }
@@ -68,7 +67,6 @@ class SavingsAccount extends BankAccount implements InterestBearing {
     if (amount > 0 && _balance - amount >= MIN_BALANCE) {
       _balance -= amount;
       _withdrawalCount++;
-      addTransaction('withdraw', amount); // Track transaction
       print('Withdrew \$${amount.toStringAsFixed(2)} from SavingsAccount.');
     } else {
       print('Insufficient funds or would violate minimum balance.');
@@ -92,7 +90,6 @@ class CheckingAccount extends BankAccount {
   void deposit(double amount) {
     if (amount > 0) {
       _balance += amount;
-      addTransaction('deposit', amount); // Track transaction
       print('Deposited \$${amount.toStringAsFixed(2)} into CheckingAccount.');
     }
   }
@@ -105,7 +102,6 @@ class CheckingAccount extends BankAccount {
         _balance -= OVERDRAFT_FEE;
         print('Overdraft fee of \$${OVERDRAFT_FEE.toStringAsFixed(2)} applied.');
       }
-      addTransaction('withdraw', amount); // Track transaction
       print('Withdrew \$${amount.toStringAsFixed(2)} from CheckingAccount.');
     }
   }
@@ -127,7 +123,6 @@ class PremiumAccount extends BankAccount implements InterestBearing {
   void deposit(double amount) {
     if (amount > 0) {
       _balance += amount;
-      addTransaction('deposit', amount); // Track transaction
       print('Deposited \$${amount.toStringAsFixed(2)} into PremiumAccount.');
     }
   }
@@ -136,7 +131,6 @@ class PremiumAccount extends BankAccount implements InterestBearing {
   void withdraw(double amount) {
     if (amount > 0 && _balance - amount >= MIN_BALANCE) {
       _balance -= amount;
-      addTransaction('withdraw', amount); // Track transaction
       print('Withdrew \$${amount.toStringAsFixed(2)} from PremiumAccount.');
     } else {
       print('Insufficient funds or would violate minimum balance.');
@@ -161,10 +155,11 @@ class Bank {
 
   // Find account by number
   BankAccount? findAccount(String accountNumber) {
-    return _accounts.firstWhere(
-      (acc) => acc.accountNumber == accountNumber,
-      orElse: () => null as BankAccount,
-    );
+    try {
+      return _accounts.firstWhere((acc) => acc.accountNumber == accountNumber);
+    } catch (e) {
+      return null;
+    }
   }
 
   // Transfer money between accounts
@@ -185,85 +180,15 @@ class Bank {
     print('\n--- Bank Report ---');
     for (var account in _accounts) {
       account.displayInfo();
+
+      // Only call calculateInterest if the account supports InterestBearing
       if (account is InterestBearing) {
-        InterestBearing interestAccount = account as InterestBearing;
-        print('Interest Earned: \$${interestAccount.calculateInterest().toStringAsFixed(2)}');
+        // cast to InterestBearing and call calculateInterest
+        double interest = (account as InterestBearing).calculateInterest();
+        print('Interest Earned: \$${interest.toStringAsFixed(2)}');
       }
+
       print('---');
-    }
-  }
-}
-
-// Extension: StudentAccount class (inherits from BankAccount, no fees, max balance $5,000)
-class StudentAccount extends BankAccount {
-  static const double MAX_BALANCE = 5000.0;
-
-  StudentAccount(String accountNumber, String accountHolderName, double balance)
-      : super(accountNumber, accountHolderName, balance) {
-    if (balance > MAX_BALANCE) {
-      throw ArgumentError('Initial balance cannot exceed \$5,000 for StudentAccount');
-    }
-  }
-
-  @override
-  void deposit(double amount) {
-    if (amount > 0 && _balance + amount <= MAX_BALANCE) {
-      _balance += amount;
-      addTransaction('deposit', amount); // Track transaction
-      print('Deposited \$${amount.toStringAsFixed(2)} into StudentAccount.');
-    } else {
-      print('Deposit would exceed maximum balance.');
-    }
-  }
-
-  @override
-  void withdraw(double amount) {
-    if (amount > 0 && _balance - amount >= 0) {
-      _balance -= amount;
-      addTransaction('withdraw', amount); // Track transaction
-      print('Withdrew \$${amount.toStringAsFixed(2)} from StudentAccount.');
-    } else {
-      print('Insufficient funds.');
-    }
-  }
-}
-
-// Extension: Transaction history tracking (added to BankAccount)
-class Transaction {
-  String type; // 'deposit' or 'withdraw'
-  double amount;
-  DateTime timestamp;
-
-  Transaction(this.type, this.amount) : timestamp = DateTime.now();
-}
-
-extension TransactionHistory on BankAccount {
-  static final Map<String, List<Transaction>> _histories = {};
-
-  List<Transaction> get history => _histories[accountNumber] ??= [];
-
-  void addTransaction(String type, double amount) {
-    history.add(Transaction(type, amount));
-  }
-
-  void displayHistory() {
-    print('Transaction History for $accountNumber:');
-    for (var tx in history) {
-      print('${tx.timestamp}: ${tx.type} \$${tx.amount.toStringAsFixed(2)}');
-    }
-  }
-}
-
-// Extension: Method to apply monthly interest to all interest-bearing accounts
-extension MonthlyInterest on Bank {
-  void applyMonthlyInterest() {
-    for (var account in _accounts) {
-      if (account is InterestBearing) {
-        InterestBearing interestAccount = account as InterestBearing;
-        double interest = interestAccount.calculateInterest();
-        account.deposit(interest); // Assuming deposit adds to balance
-        print('Applied monthly interest of \$${interest.toStringAsFixed(2)} to ${account.accountNumber}');
-      }
     }
   }
 }
@@ -276,28 +201,19 @@ void main() {
   SavingsAccount savings = SavingsAccount('SA001', 'Alice', 600.0);
   CheckingAccount checking = CheckingAccount('CA001', 'Bob', 1000.0);
   PremiumAccount premium = PremiumAccount('PA001', 'Charlie', 15000.0);
-  StudentAccount student = StudentAccount('ST001', 'Dave', 1000.0);
 
   bank.createAccount(savings);
   bank.createAccount(checking);
   bank.createAccount(premium);
-  bank.createAccount(student);
 
   // Perform operations
   savings.deposit(100.0);
   savings.withdraw(50.0);
   checking.withdraw(1100.0); // Overdraft
   premium.withdraw(2000.0);
-  student.deposit(4000.0); // Max balance check
 
   // Transfer
   bank.transfer('SA001', 'CA001', 100.0);
-
-  // Apply monthly interest
-  bank.applyMonthlyInterest();
-
-  // Display history (example)
-  savings.displayHistory();
 
   // Generate report
   bank.generateReport();
